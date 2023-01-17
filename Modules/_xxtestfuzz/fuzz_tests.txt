@@ -7,3 +7,4 @@ fuzz_sre_match
 fuzz_csv_reader
 fuzz_struct_unpack
 fuzz_xml_loads
+fuzz_binascii_a2b
