@@ -392,7 +392,7 @@ static int init_binascii_base64(void) {
 }
 // Fuzz binascii.a2b_base64
 static int fuzz_binascii_a2b (const char* data, size_t size) {
-     PyObject* input_bytes = PyBytes_FromStringAndSize(data, size);
+    PyObject* input_bytes = PyBytes_FromStringAndSize(data, size);
     if (input_bytes == NULL) {
         return 0;
     }
