@@ -398,7 +398,7 @@ static int fuzz_binascii_a2b (const char* data, size_t size) {
     }
     PyObject* parsed = PyObject_CallOneArg(binascii_method, input_bytes);
     if (parsed == NULL) {
-        return 1;
+        PyErr_Clear();
     }
     Py_DECREF(input_bytes);
     Py_XDECREF(parsed);
