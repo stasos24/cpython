@@ -380,7 +380,7 @@ static int fuzz_sre_match(const char* data, size_t size) {
 
 
 PyObject* binascii_module=NULL;
-PyObject* binascii_error=NULL;
+PyObject* binascii_method=NULL;
 // Initialization 
 static int init_binascii_base64(void) {
    binascii_module=PyImport_ImportModule("binascii");
