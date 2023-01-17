@@ -14,6 +14,49 @@
 #include <stdlib.h>
 #include <inttypes.h>
 
+
+PyObject* xml_loads_method = NULL;
+/* Called by LLVMFuzzerTestOneInput for initialization */
+static int init_xml_loads(void) {
+    /* Import json.loads */
+    PyObject* xml_module = PyImport_ImportModule("xml.parsers.expat");
+    if (xml_module == NULL) {
+        return 0;
+    }
+    xml_loads_method = PyObject_GetAttrString(xml_module, "loads");
+    return xml_loads_method != NULL;
+}
+/* Fuzz json.loads(x) */
+static int fuzz_xml_loads(const char* data, size_t size) {
+    /* Since python supports arbitrarily large ints in JSON,
+       long inputs can lead to timeouts on boring inputs like
+       `json.loads("9" * 100000)` */
+    if (size > 0x100000) {
+        return 0;
+    }
+    PyObject* input_bytes = PyBytes_FromStringAndSize(data, size);
+    if (input_bytes == NULL) {
+        return 0;
+    }
+    PyObject* parsed = PyObject_CallOneArg(xml_loads_method, input_bytes);
+    if (parsed == NULL) {
+        /* Ignore ValueError as the fuzzer will more than likely
+           generate some invalid json and values */
+        if (PyErr_ExceptionMatches(PyExc_ValueError) ||
+        /* Ignore RecursionError as the fuzzer generates long sequences of
+           arrays such as `[[[...` */
+            PyErr_ExceptionMatches(PyExc_RecursionError) ||
+        /* Ignore unicode errors, invalid byte sequences are common */
+            PyErr_ExceptionMatches(PyExc_UnicodeDecodeError)
+        ) {
+            PyErr_Clear();
+        }
+    }
+    Py_DECREF(input_bytes);
+    Py_XDECREF(parsed);
+    return 0;
+}
+
 /*  Fuzz PyFloat_FromString as a proxy for float(str). */
 static int fuzz_builtin_float(const char* data, size_t size) {
     PyObject* s = PyBytes_FromStringAndSize(data, size);
@@ -335,6 +378,33 @@ static int fuzz_sre_match(const char* data, size_t size) {
     return 0;
 }
 
+
+PyObject* binascii_module=NULL;
+PyObject* binascii_error=NULL;
+// Initialization 
+static int init_binascii_base64(void) {
+   binascii_module=PyImport_ImportModule("binascii");
+   if (binascii_module == NULL) {
+        return 0;
+   }
+   binascii_method = PyObject_GetAttrString(binascii_module, "a2b_base64");
+   return binascii_method != NULL;
+}
+// Fuzz binascii.a2b_base64
+static int fuzz_binascii_a2b (const char* data, size_t size) {
+     PyObject* input_bytes = PyBytes_FromStringAndSize(data, size);
+    if (input_bytes == NULL) {
+        return 0;
+    }
+    PyObject* parsed = PyObject_CallOneArg(binascii_method, input_bytes);
+    if (parsed == NULL) {
+        return 1;
+    }
+    Py_DECREF(input_bytes);
+    Py_XDECREF(parsed);
+    return 0;
+
+}
 #define MAX_CSV_TEST_SIZE 0x10000
 PyObject* csv_module = NULL;
 PyObject* csv_error = NULL;
@@ -495,6 +565,17 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     }
 
     rv |= _run_fuzz(data, size, fuzz_csv_reader);
+#endif
+#if !defined(_Py_FUZZ_ONE) || defined(_Py_FUZZ_fuzz_binascii_a2b)
+    static int BASE64_INITIALIZED = 0;
+    if (!BASE64_INITIALIZED && !init_binascii_base64()) {
+        PyErr_Print();
+        abort();
+    } else {
+        BASE64_INITIALIZED = 1;
+    }
+
+    rv |= _run_fuzz(data, size, fuzz_binascii_a2b);
 #endif
   return rv;
 }
