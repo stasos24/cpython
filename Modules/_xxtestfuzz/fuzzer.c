@@ -44,10 +44,10 @@ static int init_xml_parse(void) {
 }
 /* Fuzz expat.parse(x) */
 static int fuzz_xml_parse(const char* data, size_t size) {
-    if (size < 2) {
+    if (size < 4) {
         return 0;
     }
-    int index = abs(data[0]%101);
+    int index = abs(data[3]%101);
     PyObject *argList = Py_BuildValue("sz", encoding[index], NULL);
     /* Call the class object. */
     PyObject *obj = PyObject_CallObject(xml_object, argList);
@@ -55,17 +55,18 @@ static int fuzz_xml_parse(const char* data, size_t size) {
     if (input_bytes == NULL) {
         return 0;
     }
-    PyObject* parsed = PyObject_CallOneArg(obj, input_bytes);
+    PyObject* xml_method = PyObject_GetAttrString(obj, "Parse");
+    PyObject* parsed = PyObject_CallOneArg(xml_method, input_bytes);
     if (parsed == NULL) {
             PyErr_Clear();
     }
     Py_DECREF(obj);
     Py_DECREF(argList);
     Py_DECREF(input_bytes);
+    Py_XDECREF(xml_method);
     Py_XDECREF(parsed);
     return 0;
 }
-
 
 /*  Fuzz PyFloat_FromString as a proxy for float(str). */
 static int fuzz_builtin_float(const char* data, size_t size) {
