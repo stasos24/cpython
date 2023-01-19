@@ -66,47 +66,6 @@ static int fuzz_xml_parse(const char* data, size_t size) {
     return 0;
 }
 
-PyObject* xml_loads_method = NULL;
-/* Called by LLVMFuzzerTestOneInput for initialization */
-static int init_xml_loads(void) {
-    /* Import json.loads */
-    PyObject* xml_module = PyImport_ImportModule("xml.parsers.expat");
-    if (xml_module == NULL) {
-        return 0;
-    }
-    xml_loads_method = PyObject_GetAttrString(xml_module, "loads");
-    return xml_loads_method != NULL;
-}
-/* Fuzz json.loads(x) */
-static int fuzz_xml_loads(const char* data, size_t size) {
-    /* Since python supports arbitrarily large ints in JSON,
-       long inputs can lead to timeouts on boring inputs like
-       `json.loads("9" * 100000)` */
-    if (size > 0x100000) {
-        return 0;
-    }
-    PyObject* input_bytes = PyBytes_FromStringAndSize(data, size);
-    if (input_bytes == NULL) {
-        return 0;
-    }
-    PyObject* parsed = PyObject_CallOneArg(xml_loads_method, input_bytes);
-    if (parsed == NULL) {
-        /* Ignore ValueError as the fuzzer will more than likely
-           generate some invalid json and values */
-        if (PyErr_ExceptionMatches(PyExc_ValueError) ||
-        /* Ignore RecursionError as the fuzzer generates long sequences of
-           arrays such as `[[[...` */
-            PyErr_ExceptionMatches(PyExc_RecursionError) ||
-        /* Ignore unicode errors, invalid byte sequences are common */
-            PyErr_ExceptionMatches(PyExc_UnicodeDecodeError)
-        ) {
-            PyErr_Clear();
-        }
-    }
-    Py_DECREF(input_bytes);
-    Py_XDECREF(parsed);
-    return 0;
-}
 
 /*  Fuzz PyFloat_FromString as a proxy for float(str). */
 static int fuzz_builtin_float(const char* data, size_t size) {
