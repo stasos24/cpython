@@ -378,6 +378,39 @@ static int fuzz_sre_match(const char* data, size_t size) {
     return 0;
 }
 
+// Initialization codecs.encode
+static int init_codecs_encode(void) {
+   codecs_module=PyImport_ImportModule("codecs");
+   if (codecs_module == NULL) {
+        return 0;
+   }
+   codecs_method = PyObject_GetAttrString(codecs_module, "encode");
+   return codecs_method != NULL;
+}
+// Fuzz codec.encode
+static int fuzz_codecs_encode (const char* data, size_t size) {
+    if (size < 2){
+        return 0;
+    }
+    char *buf = (char*) calloc(size + 1, sizeof(char));
+    memcpy(buf, data, size);
+    PyObject *args = Py_BuildValue("(s)", buf);
+    free(buf);
+    if (args == NULL) {
+        PyErr_Clear();
+        return 0;
+    }
+    int index = abs(data[0]%101);
+    PyObject *keywords = Py_BuildValue("{s:s,s:s}","encoding", encoding[index], "errors", "strict");
+    PyObject* parsed = PyObject_Call(codecs_method, args, keywords);
+    if (parsed == NULL) {
+        PyErr_Clear();
+    }
+    Py_DECREF(args);
+    Py_DECREF(keywords);
+    Py_XDECREF(parsed);
+    return 0;
+}
 
 PyObject* binascii_module=NULL;
 PyObject* binascii_method=NULL;
@@ -576,6 +609,17 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     }
 
     rv |= _run_fuzz(data, size, fuzz_binascii_a2b);
+#endif
+    #if !defined(_Py_FUZZ_ONE) || defined(_Py_FUZZ_fuzz_codecs_encode)
+    static int CODECS_INITIALIZED = 0;
+    if (!CODECS_INITIALIZED && !init_codecs_encode()) {
+        PyErr_Print();
+        abort();
+    } else {
+        CODECS_INITIALIZED = 1;
+    }
+
+    rv |= _run_fuzz(data, size, fuzz_codecs_encode);
 #endif
   return rv;
 }
